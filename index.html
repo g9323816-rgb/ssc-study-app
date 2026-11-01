@@ -246,15 +246,10 @@ nav.bottom button.sel{color:var(--green-d);}
         <div class="mut" id="mcqInfo"></div>
       </div>
       <div class="card" id="mcqCard">
-        <div class="qmeta"><span class="score-chip" id="mcqProg">প্রশ্ন ১/২০</span><span class="score-chip" id="mcqScore">স্কোর: ০</span></div>
-        <p class="qtext" id="mcqQ"></p>
-        <div id="mcqOpts"></div>
-        <div class="feedback" id="mcqFb"></div>
-        <div class="navrow">
-          <button class="btn ghost" id="mcqPrev">‹ আগের</button>
-          <button class="btn" id="mcqNext">পরের ›</button>
-        </div>
+        <div class="qmeta"><span class="score-chip" id="mcqProg">উত্তর দিয়েছ ০/২০</span><span class="score-chip" id="mcqScore">স্কোর: ০</span></div>
+        <div class="mut">নিচে স্ক্রল করে একটার পর একটা প্রশ্নের উত্তর দাও — উত্তরে চাপ দিলেই সাথে সাথে সঠিক/ভুল দেখতে পাবে।</div>
       </div>
+      <div id="mcqList"></div>
       <div class="card hidden" id="mcqDone">
         <h2>🎉 সেট শেষ!</h2>
         <p id="mcqDoneTxt" style="font-size:17px"></p>
@@ -588,15 +583,28 @@ $('lenChips').addEventListener('click', e => {
   document.querySelectorAll('#lenChips .chip').forEach(x => x.classList.toggle('sel', x===c));
 });
 function fmtNow(){ const n = new Date(); let h = n.getHours(); const ap = h<12 ? 'সকাল' : (h<17 ? 'দুপুর' : (h<19 ? 'সন্ধ্যা' : 'রাত')); h = h%12 || 12; return ap+' '+bn(h)+':'+bn(pad2(n.getMinutes())); }
+function sessRemain(){ if(!sess) return 0; return Math.max(0, sess.target*60 - Math.floor((Date.now()-sess.startedAt)/1000)); }
 function startSession(){
-  sess = { target: selLen, remain: selLen*60, timer: null };
+  sess = { target: selLen, remain: selLen*60, startedAt: Date.now(), timer: null };
+  room.active = { target: selLen, startedAt: sess.startedAt }; save('ssc_room_v1', room);
+  runSessionUI();
+}
+function runSessionUI(){
   $('sessionSetup').classList.add('hidden'); $('sessionRun').classList.remove('hidden');
-  $('sessInfo').textContent = 'লক্ষ্য: '+bn(selLen)+' মিনিটের সেশন';
-  tickSess();
-  sess.timer = setInterval(() => { sess.remain--; tickSess(); if(sess.remain<=0){ finishSession(true); } }, 1000);
+  $('sessInfo').textContent = 'লক্ষ্য: '+bn(sess.target)+' মিনিটের সেশন';
+  sess.remain = sessRemain(); tickSess();
+  if(sess.timer) clearInterval(sess.timer);
+  sess.timer = setInterval(() => { sess.remain = sessRemain(); tickSess(); if(sess.remain<=0){ finishSession(true); } }, 1000);
 }
 function tickSess(){ if(sess) $('countDown').textContent = fmtClock(sess.remain); }
-function endSessionUI(){ if(sess && sess.timer) clearInterval(sess.timer); sess = null; $('sessionRun').classList.add('hidden'); $('sessionSetup').classList.remove('hidden'); }
+function endSessionUI(){ if(sess && sess.timer) clearInterval(sess.timer); sess = null; room.active = null; save('ssc_room_v1', room); $('sessionRun').classList.add('hidden'); $('sessionSetup').classList.remove('hidden'); }
+function resumeSession(){
+  if(!room.active) return;
+  sess = { target: room.active.target, remain: 0, startedAt: room.active.startedAt, timer: null };
+  if(sessRemain() <= 0){ finishSession(true); return; }
+  runSessionUI();
+}
+document.addEventListener('visibilitychange', () => { if(!document.hidden && sess){ sess.remain = sessRemain(); tickSess(); if(sess.remain<=0) finishSession(true); } });
 function finishSession(auto){
   if(!sess) return;
   const doneMin = auto ? sess.target : Math.floor((sess.target*60 - sess.remain)/60);
@@ -644,46 +652,51 @@ let curSet = 0, qIdx = 0, pracAns = {};
 })();
 function setQuestions(){ return MCQS.slice(curSet*SET_SIZE, (curSet+1)*SET_SIZE); }
 function pracScore(){ const qs = setQuestions(); let s=0; qs.forEach((q,i)=>{ if(pracAns[i]===q.a) s++; }); return s; }
-function renderPrac(){
-  const qs = setQuestions(); const q = qs[qIdx]; const gi = curSet*SET_SIZE + qIdx;
-  $('mcqProg').textContent = 'প্রশ্ন '+bn(qIdx+1)+'/'+bn(qs.length)+'  •  মোট '+bn(gi+1)+'/'+bn(MCQS.length);
+function pracAnswered(){ return Object.keys(pracAns).length; }
+function renderPracHead(){
+  const qs = setQuestions();
+  $('mcqProg').textContent = 'উত্তর দিয়েছ '+bn(pracAnswered())+'/'+bn(qs.length);
   $('mcqScore').textContent = 'স্কোর: '+bn(pracScore());
-  $('mcqQ').textContent = q.q;
-  const my = pracAns[qIdx];
-  $('mcqOpts').innerHTML = q.o.map((op,i) => {
+  $('mcqInfo').textContent = 'মোট '+bn(MCQS.length)+'টি MCQ, '+bn(nSets)+'টি সেটে ভাগ করা।';
+}
+function qBlockHTML(q, qi){
+  const gi = curSet*SET_SIZE + qi; const my = pracAns[qi];
+  let h = '<div class="card" data-qblock="'+qi+'"><p class="qtext">'+bn(gi+1)+'. '+esc(q.q)+'</p>';
+  h += q.o.map((op,i) => {
     let cls = 'opt';
     if(my !== undefined){ if(i===q.a) cls += ' right'; else if(i===my) cls += ' wrong'; }
-    return '<button class="'+cls+'" data-i="'+i+'" '+(my!==undefined?'disabled':'')+'><span class="ol">'+OPTL[i]+'</span>'+esc(op)+'</button>';
+    return '<button class="'+cls+'" data-q="'+qi+'" data-i="'+i+'" '+(my!==undefined?'disabled':'')+'><span class="ol">'+OPTL[i]+'</span>'+esc(op)+'</button>';
   }).join('');
-  const fb = $('mcqFb');
   if(my !== undefined){
-    fb.className = 'feedback ' + (my===q.a ? 'ok' : 'no');
-    fb.textContent = my===q.a ? '✅ সঠিক উত্তর!' : '❌ ভুল হয়েছে। সঠিক উত্তর: '+OPTL[q.a]+' '+q.o[q.a];
-  } else { fb.className = 'feedback'; fb.textContent = ''; }
-  $('mcqPrev').disabled = qIdx===0;
-  $('mcqNext').textContent = qIdx===qs.length-1 ? 'শেষ করো ✔' : 'পরের ›';
-  $('mcqInfo').textContent = 'মোট '+bn(MCQS.length)+'টি MCQ, '+bn(nSets)+'টি সেটে ভাগ করা। উত্তরে চাপ দিলেই সাথে সাথে সঠিক/ভুল দেখতে পাবে।';
+    h += '<div class="feedback '+(my===q.a?'ok':'no')+'">'+(my===q.a ? '✅ সঠিক উত্তর!' : '❌ ভুল হয়েছে। সঠিক উত্তর: '+OPTL[q.a]+' '+esc(q.o[q.a]))+'</div>';
+  }
+  return h + '</div>';
+}
+function renderPrac(){
+  renderPracHead();
+  $('mcqList').innerHTML = setQuestions().map((q,qi) => qBlockHTML(q,qi)).join('');
+  $('mcqDone').classList.add('hidden');
 }
 $('setChips').addEventListener('click', e => {
   const c = e.target.closest('.chip'); if(!c) return;
   curSet = parseInt(c.dataset.set,10); qIdx = 0; pracAns = {};
   document.querySelectorAll('#setChips .chip').forEach(x => x.classList.toggle('sel', x===c));
-  $('mcqDone').classList.add('hidden'); $('mcqCard').classList.remove('hidden'); renderPrac();
+  renderPrac();
 });
-$('mcqOpts').addEventListener('click', e => {
-  const b = e.target.closest('.opt'); if(!b || pracAns[qIdx] !== undefined) return;
-  pracAns[qIdx] = parseInt(b.dataset.i,10); renderPrac();
-});
-$('mcqPrev').addEventListener('click', () => { if(qIdx>0){ qIdx--; renderPrac(); } });
-$('mcqNext').addEventListener('click', () => {
-  const qs = setQuestions();
-  if(qIdx < qs.length-1){ qIdx++; renderPrac(); }
-  else{
-    $('mcqCard').classList.add('hidden'); $('mcqDone').classList.remove('hidden');
+$('mcqList').addEventListener('click', e => {
+  const b = e.target.closest('.opt'); if(!b) return;
+  const qi = parseInt(b.dataset.q,10); if(pracAns[qi] !== undefined) return;
+  pracAns[qi] = parseInt(b.dataset.i,10);
+  const qs = setQuestions(); const block = $('mcqList').querySelector('[data-qblock="'+qi+'"]');
+  if(block) block.outerHTML = qBlockHTML(qs[qi], qi);
+  renderPracHead();
+  if(pracAnswered() === qs.length){
+    $('mcqDone').classList.remove('hidden');
     $('mcqDoneTxt').innerHTML = 'এই সেটে তোমার স্কোর: <b>'+bn(pracScore())+' / '+bn(qs.length)+'</b><br><span class="mut">ভুলগুলো পাঠ ট্যাব থেকে আবার পড়ে নাও!</span>';
+    $('mcqDone').scrollIntoView({behavior:'smooth', block:'center'});
   }
 });
-$('mcqAgain').addEventListener('click', () => { qIdx = 0; pracAns = {}; $('mcqDone').classList.add('hidden'); $('mcqCard').classList.remove('hidden'); renderPrac(); });
+$('mcqAgain').addEventListener('click', () => { qIdx = 0; pracAns = {}; renderPrac(); window.scrollTo(0,0); });
 </script>
 
 <script>
@@ -794,7 +807,7 @@ $('btnWipe').addEventListener('click', () => {
 })();
 
 /* ============ শুরু ============ */
-renderRoom(); renderPrac(); updateScoreLines();
+renderRoom(); renderPrac(); updateScoreLines(); resumeSession();
 </script>
 </body>
 </html>
