@@ -1,6 +1,6 @@
 /* SSC পড়ার অ্যাপ — service worker: প্রথম লোডের পর পুরোপুরি অফলাইনে চলবে */
-const CACHE = 'ssc-study-app-v6';
-const CORE = ['./', './index.html', './manifest.webmanifest', './icon.svg'];
+const CACHE = 'ssc-study-app-v8';
+const CORE = ['./', './index.html', './manifest.webmanifest', './icon.svg', './data-pouroniti.js', './data-itihas.js', './data-bhugol.js'];
 
 self.addEventListener('install', event => {
   event.waitUntil(
