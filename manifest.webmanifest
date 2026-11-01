@@ -1,1 +1,27 @@
-{"background_color":"#f3f7f4","description":"SSC শিক্ষার্থীদের জন্য রিডিং রুম, পাঠ, MCQ অনুশীলন ও অধ্যায়ভিত্তিক পরীক্ষা।","dir":"ltr","display":"standalone","icons":[{"purpose":"any","sizes":"192x192","src":"icon-192.png","type":"image/png"},{"purpose":"any","sizes":"512x512","src":"icon-512.png","type":"image/png"},{"purpose":"maskable","sizes":"512x512","src":"icon-512.png","type":"image/png"}],"lang":"bn","name":"SSC পড়ার অ্যাপ","orientation":"portrait","scope":".","short_name":"SSC পড়া","start_url":".","theme_color":"#1b7a43"}
+{
+ "background_color": "#f3f7f4",
+ "description": "SSC শিক্ষার্থীদের জন্য রিডিং রুম, পাঠ, MCQ অনুশীলন ও অধ্যায়ভিত্তিক পরীক্ষা।",
+ "dir": "ltr",
+ "display": "standalone",
+ "icons": [
+  {
+   "src": "icon.svg",
+   "sizes": "any",
+   "type": "image/svg+xml",
+   "purpose": "any"
+  },
+  {
+   "src": "icon.svg",
+   "sizes": "any",
+   "type": "image/svg+xml",
+   "purpose": "maskable"
+  }
+ ],
+ "lang": "bn",
+ "name": "SSC পড়ার অ্যাপ",
+ "orientation": "portrait",
+ "scope": ".",
+ "short_name": "SSC পড়া",
+ "start_url": ".",
+ "theme_color": "#1b7a43"
+}
